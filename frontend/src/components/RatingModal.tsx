@@ -23,8 +23,8 @@ const COMPLIMENT_TAGS = [
 
 export default function RatingModal({
   isOpen,
-  driverName = 'Rajesh Sharma',
-  vehicleModel = 'Maruti Suzuki Swift',
+  driverName = 'Driver Partner',
+  vehicleModel = 'Tata Nexon',
   fareAmount = 145.0,
   onSubmit,
   onClose,

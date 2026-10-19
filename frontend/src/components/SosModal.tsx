@@ -15,8 +15,8 @@ export default function SosModal({
   isOpen,
   onClose,
   currentAddress = 'Marine Drive, Mumbai, Maharashtra',
-  driverName = 'Rajesh Sharma',
-  vehiclePlate = 'MH 02 AB 1234',
+  driverName = 'Driver Partner',
+  vehiclePlate = 'MH 04 DK 4019',
 }: SosModalProps) {
   const [copied, setCopied] = useState(false);
 

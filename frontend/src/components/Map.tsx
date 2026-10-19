@@ -57,7 +57,7 @@ const createDropoffPin = (label: string) =>
     iconAnchor: [60, 44],
   });
 
-const createDriverCarIcon = (heading: number = 0, driverText: string = 'Rajesh Sharma • MH 02 AB 1234') =>
+const createDriverCarIcon = (heading: number = 0, driverText: string = 'Driver Partner • MH 04 DK 4019') =>
   L.divIcon({
     className: '',
     html: `
@@ -115,8 +115,8 @@ export default function Map({
   driverLocation,
   pickupAddress = 'Pickup Point',
   dropoffAddress = 'Destination',
-  driverName = 'Rajesh Sharma',
-  vehiclePlate = 'MH 02 AB 1234',
+  driverName = 'Driver Partner',
+  vehiclePlate = 'MH 04 DK 4019',
 }: MapProps) {
   const mapRef = useRef<L.Map | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);

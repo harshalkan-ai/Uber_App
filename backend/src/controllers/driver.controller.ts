@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import { supabase } from '../config/supabase';
 import { AuthenticatedRequest, DriverStatus, RideStatus } from '../types';
 import { AppError } from '../middlewares/error.middleware';
+import { io } from '../server';
 
 /**
  * 1. POST /api/v1/drivers/register
@@ -18,21 +19,42 @@ export const registerDriverProfile = async (
             return next(new AppError('Authentication required', 401));
         }
 
-        const { vehicle_model, vehicle_plate, vehicle_color, ride_tier = 'UberGo' } = req.body;
+        const {
+            vehicle_model,
+            vehicle_plate,
+            vehicle_color,
+            ride_tier = 'UberGo',
+            phone_number,
+            full_name,
+            driver_name,
+        } = req.body;
 
         if (!vehicle_model || !vehicle_plate || !vehicle_color) {
             return next(new AppError('Vehicle model, plate, and color are required', 400));
         }
 
-        // 1. Update user role in users table to 'driver'
-        await supabase.from('users').update({ role: 'driver' }).eq('id', userId);
+        const resolvedDriverName = driver_name || full_name || 'Vikram Pawar';
 
-        // 2. Create or update driver vehicle profile
+        // 1. Ensure user exists and update role in users table to 'driver'
+        await supabase.from('users').upsert(
+            {
+                id: userId,
+                email: `${userId}@uber.dev`,
+                full_name: resolvedDriverName,
+                phone_number: phone_number || '',
+                role: 'driver',
+                updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'id' }
+        );
+
+        // 2. Create or update driver vehicle profile with driver_name
         const { data: driver, error } = await supabase
             .from('drivers')
             .upsert(
                 {
                     user_id: userId,
+                    driver_name: resolvedDriverName,
                     vehicle_model,
                     vehicle_plate,
                     vehicle_color,
@@ -195,10 +217,10 @@ export const acceptRide = async (
 
         const { id: rideId } = req.params;
 
-        // 1. Get driver record
+        // 1. Get driver record with user profile
         const { data: driver, error: driverErr } = await supabase
             .from('drivers')
-            .select('id, status')
+            .select('*, user:users!drivers_user_id_fkey(*)')
             .eq('user_id', userId)
             .single();
 
@@ -229,6 +251,32 @@ export const acceptRide = async (
         // 3. Mark driver as 'busy'
         await supabase.from('drivers').update({ status: 'busy' }).eq('id', driver.id);
 
+        const driverName = driver.driver_name || driver.user?.full_name || 'Vikram Pawar';
+        const driverPayload = {
+            id: driver.id,
+            name: driverName,
+            vehicle_model: driver.vehicle_model,
+            vehicle_plate: driver.vehicle_plate,
+            vehicle_color: driver.vehicle_color,
+            rating: driver.rating || 5.0,
+            user: {
+                full_name: driverName,
+                phone_number: driver.user?.phone_number || '+91 98765 43210',
+                profile_image_url: driver.user?.profile_image_url || '',
+            },
+        };
+
+        // Broadcast acceptance to rider & shared active ride room
+        io.emit('ride:status_changed', {
+            rideId,
+            status: 'accepted',
+            driver: driverPayload,
+            driverLocation: {
+                lat: driver.current_lat || updatedRide.pickup_lat,
+                lng: driver.current_lng || updatedRide.pickup_lng,
+            },
+        });
+
         res.status(200).json({
             success: true,
             message: 'Ride accepted successfully',
@@ -255,7 +303,7 @@ export const updateRideStatus = async (
         }
 
         const { id: rideId } = req.params;
-        const { status }: { status: RideStatus } = req.body;
+        const { status, otp }: { status: RideStatus; otp?: string } = req.body;
 
         const allowedTransitions: RideStatus[] = ['arrived', 'in_progress', 'completed'];
 
@@ -266,12 +314,25 @@ export const updateRideStatus = async (
         // Fetch driver
         const { data: driver } = await supabase
             .from('drivers')
-            .select('id')
+            .select('*, user:users!drivers_user_id_fkey(*)')
             .eq('user_id', userId)
             .single();
 
         if (!driver) {
             return next(new AppError('Driver record not found', 404));
+        }
+
+        // Verify OTP if starting trip ('in_progress')
+        if (status === 'in_progress') {
+            const { data: rideToStart } = await supabase
+                .from('rides')
+                .select('otp')
+                .eq('id', rideId)
+                .single();
+
+            if (rideToStart?.otp && otp && String(rideToStart.otp).trim() !== String(otp).trim()) {
+                return next(new AppError('Invalid 4-digit OTP. Please enter the correct OTP from passenger.', 400));
+            }
         }
 
         // Update ride state
@@ -287,13 +348,38 @@ export const updateRideStatus = async (
             return next(new AppError('Unable to update ride status', 400));
         }
 
-        // If trip completed, set driver back to 'online' so they can receive new trips
+        // If trip completed, set driver back to 'online' and increment total_trips
         if (status === 'completed') {
             await supabase
                 .from('drivers')
-                .update({ status: 'online', updated_at: new Date().toISOString() })
+                .update({
+                    status: 'online',
+                    total_trips: (driver.total_trips || 0) + 1,
+                    updated_at: new Date().toISOString(),
+                })
                 .eq('id', driver.id);
         }
+
+        const driverName = driver.driver_name || driver.user?.full_name || 'Vikram Pawar';
+        const driverPayload = {
+            id: driver.id,
+            name: driverName,
+            vehicle_model: driver.vehicle_model,
+            vehicle_plate: driver.vehicle_plate,
+            vehicle_color: driver.vehicle_color,
+            rating: driver.rating || 5.0,
+            user: {
+                full_name: driverName,
+                phone_number: driver.user?.phone_number || '+91 98765 43210',
+            },
+        };
+
+        // Broadcast to all sockets listening for ride updates
+        io.emit('ride:status_changed', {
+            rideId,
+            status,
+            driver: driverPayload,
+        });
 
         res.status(200).json({
             success: true,

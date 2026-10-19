@@ -40,25 +40,35 @@ export default function Navbar({ activeTab = 'Ride', onOpenActivity }: NavbarPro
             </span>
           </Link>
 
-          {/* Middle Navigation Tabs: Ride & Activity */}
+          {/* Navigation Tabs: Ride, Activity, Driver Portal */}
           <nav className="flex items-center gap-1 h-16" role="navigation" aria-label="Main navigation">
-            <button
+            <Link
+              href="/"
               id="nav-tab-ride"
-              className="relative flex items-center gap-2 px-4 h-full text-sm font-bold text-black transition-colors rounded-none whitespace-nowrap cursor-pointer"
+              className={`relative flex items-center gap-2 px-4 h-full text-sm font-bold transition-colors whitespace-nowrap cursor-pointer ${
+                activeTab === 'Ride' ? 'text-black' : 'text-neutral-500 hover:text-black'
+              }`}
             >
               <Car size={17} />
               <span>Ride</span>
-              <span className="absolute bottom-0 left-0 right-0 h-[3px] bg-black rounded-t-sm" />
-            </button>
+              {activeTab === 'Ride' && (
+                <span className="absolute bottom-0 left-0 right-0 h-[3px] bg-black rounded-t-sm" />
+              )}
+            </Link>
 
-            <button
-              id="btn-activity"
-              onClick={onOpenActivity}
-              className="flex items-center gap-2 px-4 h-full text-sm font-semibold text-neutral-600 hover:text-black transition-colors whitespace-nowrap cursor-pointer"
+            <Link
+              href="/activity"
+              id="nav-tab-activity"
+              className={`relative flex items-center gap-2 px-4 h-full text-sm font-bold transition-colors whitespace-nowrap cursor-pointer ${
+                activeTab === 'Activity' ? 'text-black' : 'text-neutral-500 hover:text-black'
+              }`}
             >
               <FileText size={16} />
               <span>Activity</span>
-            </button>
+              {activeTab === 'Activity' && (
+                <span className="absolute bottom-0 left-0 right-0 h-[3px] bg-black rounded-t-sm" />
+              )}
+            </Link>
           </nav>
         </div>
 
@@ -82,14 +92,14 @@ export default function Navbar({ activeTab = 'Ride', onOpenActivity }: NavbarPro
             )}
           </div>
 
-          {/* Prominent Driver Mode Switcher */}
+          {/* Driver Portal Link */}
           <Link
             href="/driver"
             id="nav-link-driver"
             className="bg-black text-white px-4 py-2 rounded-full text-xs font-bold hover:bg-neutral-800 transition flex items-center gap-1.5 shadow-sm whitespace-nowrap cursor-pointer"
             title="Open Driver Dashboard"
           >
-            ⚡ Switch to Driver
+            🚘 Driver Portal
           </Link>
 
           {/* Clerk Profile Avatar */}

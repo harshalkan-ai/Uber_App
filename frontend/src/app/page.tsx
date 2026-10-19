@@ -143,12 +143,12 @@ export default function Home() {
       if (payload.driver) {
         const d = payload.driver;
         setDriver({
-          name: d.user?.full_name || d.name || 'Driver',
-          phone: d.user?.phone_number || d.phone,
-          vehicle_model: d.vehicle_model || 'Swift',
-          vehicle_plate: d.vehicle_plate || 'MH 02 AB 1234',
-          vehicle_color: d.vehicle_color || 'White',
-          rating: d.rating || 4.9,
+          name: d.driver_name || d.name || d.user?.full_name || 'Vikram Pawar',
+          phone: d.user?.phone_number || d.phone || '+91 98765 43210',
+          vehicle_model: d.vehicle_model || 'Tata Nexon',
+          vehicle_plate: d.vehicle_plate || 'MH 04 DK 4019',
+          vehicle_color: d.vehicle_color || 'Grey',
+          rating: d.rating || 5.0,
           profile_image_url: d.user?.profile_image_url || d.profile_image_url,
         });
       }
@@ -205,12 +205,12 @@ export default function Home() {
         if ((rideDetails.status === 'assigned' || rideDetails.status === 'accepted') && rideDetails.driver) {
           const d = rideDetails.driver;
           setDriver({
-            name: d.user?.full_name || 'Driver',
-            phone: d.user?.phone_number,
-            vehicle_model: d.vehicle_model,
-            vehicle_plate: d.vehicle_plate,
-            vehicle_color: d.vehicle_color,
-            rating: d.rating,
+            name: (d as any).driver_name || d.user?.full_name || 'Vikram Pawar',
+            phone: d.user?.phone_number || '+91 98765 43210',
+            vehicle_model: d.vehicle_model || 'Tata Nexon',
+            vehicle_plate: d.vehicle_plate || 'MH 04 DK 4019',
+            vehicle_color: d.vehicle_color || 'Grey',
+            rating: d.rating || 5.0,
             profile_image_url: d.user?.profile_image_url,
           });
           setPhase('active');
@@ -367,6 +367,7 @@ export default function Home() {
           dropoffAddress={dropoffAddress}
           fareAmount={bookedRide.fare_amount}
           tier={bookedRide.ride_tier}
+          otp={bookedRide.otp || '4821'}
           onCancel={handleCancelRide}
           onSos={() => setShowSos(true)}
         />
@@ -421,14 +422,14 @@ export default function Home() {
         onOpenActivity={() => setShowActivity(true)}
       />
 
-      {/* ─── 30% / 70% Desktop Split Screen Layout ─────────────────────── */}
+      {/* ─── 32% / 68% Desktop Split Screen Layout ─────────────────────── */}
       <div className="flex flex-col md:flex-row w-full h-[calc(100vh-64px)] overflow-hidden bg-white relative">
-        {/* Left 30% Sidebar Panel */}
-        <aside className="w-full md:w-[35%] lg:w-[32%] xl:w-[30%] min-w-[360px] md:min-w-[420px] max-w-[500px] h-[50vh] md:h-full bg-white text-black border-t md:border-t-0 md:border-r border-neutral-200 p-5 md:p-6 flex flex-col justify-between overflow-y-auto shadow-2xl md:shadow-lg z-20 flex-shrink-0 order-2 md:order-1">
+        {/* Left 32% Sidebar Panel */}
+        <aside className="w-full md:w-[35%] lg:w-[32%] min-w-[360px] md:min-w-[400px] max-w-[500px] h-[50vh] md:h-full bg-white text-black border-t md:border-t-0 md:border-r border-neutral-200 p-5 md:p-6 flex flex-col justify-between overflow-y-auto shadow-2xl md:shadow-lg z-20 flex-shrink-0 order-2 md:order-1">
           {renderLeftPanel(true)}
         </aside>
 
-        {/* Right 70% Map Canvas */}
+        {/* Right 68% Map Canvas */}
         <main className="flex-1 h-[50vh] md:h-full relative z-10 w-full order-1 md:order-2">
           <Map
             pickupCoords={pickupCoords}
@@ -437,8 +438,8 @@ export default function Home() {
             driverLocation={driverLocation}
             pickupAddress={pickupAddress}
             dropoffAddress={dropoffAddress}
-            driverName={driver?.name || 'Rajesh Sharma'}
-            vehiclePlate={driver?.vehicle_plate || 'MH 02 AB 1234'}
+            driverName={driver?.name || 'Assigned Driver'}
+            vehiclePlate={driver?.vehicle_plate || 'MH 04 DK 4019'}
           />
         </main>
       </div>
@@ -464,11 +465,24 @@ export default function Home() {
       {/* Rating & Reviews Modal */}
       <RatingModal
         isOpen={showRating}
-        driverName={driver?.name || 'Rajesh Sharma'}
-        vehicleModel={`${driver?.vehicle_color || 'White'} ${driver?.vehicle_model || 'Swift'}`}
+        driverName={driver?.name || 'Driver Partner'}
+        vehicleModel={`${driver?.vehicle_color || ''} ${driver?.vehicle_model || ''}`}
         fareAmount={bookedRide?.fare_amount || 145.0}
-        onSubmit={(rating, feedback) => {
-          console.log('[Trip rated]:', { rating, feedback });
+        onSubmit={async (rating, feedback) => {
+          if (bookedRide?.id) {
+            try {
+              const token = await getAuthToken();
+              if (token) {
+                await axios.post(
+                  `${API_URL}/rides/${bookedRide.id}/review`,
+                  { rating, feedback },
+                  { headers: { Authorization: `Bearer ${token}` } }
+                );
+              }
+            } catch (err) {
+              console.error('Failed to submit review:', err);
+            }
+          }
           setShowRating(false);
         }}
         onClose={() => setShowRating(false)}
@@ -479,8 +493,8 @@ export default function Home() {
         isOpen={showSos}
         onClose={() => setShowSos(false)}
         currentAddress={dropoffAddress || pickupAddress || 'Mumbai, Maharashtra'}
-        driverName={driver?.name || 'Rajesh Sharma'}
-        vehiclePlate={driver?.vehicle_plate || 'MH 02 AB 1234'}
+        driverName={driver?.name || 'Driver Partner'}
+        vehiclePlate={driver?.vehicle_plate || 'MH 04 DK 4019'}
       />
 
     </div>

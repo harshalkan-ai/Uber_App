@@ -282,7 +282,7 @@ export default function RideSearchCard({
   return (
     <div
       ref={containerRef}
-      className={`flex flex-col rounded-2xl bg-white w-full animate-fadeInUp ${
+      className={`flex flex-col rounded-2xl bg-white w-full animate-fadeInUp pb-8 overflow-y-auto ${
         isMobile ? 'border-0 shadow-none p-0' : 'p-5 shadow-2xl border border-neutral-200 gap-3'
       }`}
     >
@@ -370,9 +370,9 @@ export default function RideSearchCard({
                   </button>
                 )}
 
-                {pickupSuggestions.map((s) => (
+                {pickupSuggestions.map((s, index) => (
                   <button
-                    key={s.place_id}
+                    key={`${s.place_id || 'loc'}-${index}`}
                     type="button"
                     onMouseDown={(e) => {
                       e.preventDefault();
@@ -438,9 +438,9 @@ export default function RideSearchCard({
             {/* LocationIQ Dropoff Suggestions Dropdown */}
             {focusedField === 'dropoff' && dropoffSuggestions.length > 0 && (
               <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-neutral-200 rounded-xl shadow-2xl overflow-hidden max-h-56 overflow-y-auto">
-                {dropoffSuggestions.map((s) => (
+                {dropoffSuggestions.map((s, index) => (
                   <button
-                    key={s.place_id}
+                    key={`${s.place_id || 'loc'}-${index}`}
                     type="button"
                     onMouseDown={(e) => {
                       e.preventDefault();

@@ -1,6 +1,7 @@
 'use client';
 
-import { Phone, MessageCircle, Star, X, Navigation } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Phone, MessageCircle, Star, X, Navigation, Clock, ShieldCheck } from 'lucide-react';
 
 interface DriverInfo {
   name: string;
@@ -14,21 +15,43 @@ interface DriverInfo {
 
 interface ActiveRideCardProps {
   driver: DriverInfo;
-  status: string; // 'assigned' | 'arrived' | 'in_progress' | 'completed'
+  status: string; // 'accepted' | 'assigned' | 'arrived' | 'in_progress' | 'completed'
   pickupAddress: string;
   dropoffAddress: string;
   fareAmount: number;
   tier: string;
+  otp?: string;
+  initialEtaMinutes?: number;
   onCancel: () => void;
   onSos?: () => void;
 }
 
-const STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  accepted: { label: '🚗 Driver is on the way', color: 'bg-blue-50 text-blue-700 border-blue-200' },
-  assigned: { label: '🚗 Driver is on the way', color: 'bg-blue-50 text-blue-700 border-blue-200' },
-  arrived: { label: '📍 Driver has arrived at pickup', color: 'bg-amber-50 text-amber-700 border-amber-200' },
-  in_progress: { label: '🏎️ Ride in progress', color: 'bg-green-50 text-green-700 border-green-200' },
-  completed: { label: '✅ Ride completed', color: 'bg-neutral-50 text-neutral-700 border-neutral-200' },
+const STATUS_CONFIG: Record<string, { label: string; badge: string; etaPrefix: string }> = {
+  accepted: {
+    label: 'Driver Assigned & En Route',
+    badge: 'bg-blue-600 text-white',
+    etaPrefix: 'Driver arriving in',
+  },
+  assigned: {
+    label: 'Driver Assigned & En Route',
+    badge: 'bg-blue-600 text-white',
+    etaPrefix: 'Driver arriving in',
+  },
+  arrived: {
+    label: 'Driver Arrived at Pickup Point',
+    badge: 'bg-amber-500 text-black',
+    etaPrefix: 'Waiting for passenger',
+  },
+  in_progress: {
+    label: 'Trip in Progress',
+    badge: 'bg-emerald-600 text-white',
+    etaPrefix: 'Reaching destination in',
+  },
+  completed: {
+    label: 'Trip Completed',
+    badge: 'bg-black text-white',
+    etaPrefix: 'Trip ended',
+  },
 };
 
 export default function ActiveRideCard({
@@ -38,25 +61,54 @@ export default function ActiveRideCard({
   dropoffAddress,
   fareAmount,
   tier,
+  otp = '4821',
+  initialEtaMinutes = 3,
   onCancel,
   onSos,
 }: ActiveRideCardProps) {
-  const statusInfo = STATUS_LABELS[status] || STATUS_LABELS.assigned;
+  const [etaSeconds, setEtaSeconds] = useState<number>(initialEtaMinutes * 60);
+
+  // Dynamic ETA live countdown
+  useEffect(() => {
+    if (status === 'completed' || status === 'arrived') return;
+    const interval = setInterval(() => {
+      setEtaSeconds((prev) => (prev > 15 ? prev - 1 : 15));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [status]);
+
+  const etaMinutes = Math.ceil(etaSeconds / 60);
+  const statusInfo = STATUS_CONFIG[status] || STATUS_CONFIG.assigned;
 
   return (
     <div
-      className="bg-white rounded-2xl w-full max-w-[420px] animate-fadeInUp overflow-hidden"
-      style={{ boxShadow: '0 4px 24px rgba(0,0,0,0.13), 0 1px 4px rgba(0,0,0,0.07)' }}
+      className="bg-white rounded-3xl w-full max-w-[420px] animate-fadeInUp overflow-hidden flex flex-col gap-0 border border-neutral-200"
+      style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }}
     >
-      {/* Status Banner */}
-      <div className={`px-5 py-3 border ${statusInfo.color} text-sm font-semibold text-center flex items-center justify-between`}>
-        <span className="flex-1 text-center">{statusInfo.label}</span>
+      {/* Dynamic ETA Header Banner */}
+      <div className="bg-black text-white p-5 flex items-center justify-between">
+        <div>
+          <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${statusInfo.badge}`}>
+            {statusInfo.label}
+          </span>
+          <div className="text-xl font-black mt-1 flex items-center gap-2">
+            <Clock size={18} className="text-amber-400" />
+            {status === 'arrived' ? (
+              <span>Driver is waiting outside!</span>
+            ) : status === 'in_progress' ? (
+              <span>On the way to destination</span>
+            ) : (
+              <span>{statusInfo.etaPrefix} {etaMinutes} min{etaMinutes !== 1 ? 's' : ''}</span>
+            )}
+          </div>
+        </div>
+
         {onSos && (
           <button
             id="btn-trigger-sos"
             type="button"
             onClick={onSos}
-            className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white text-[11px] font-black rounded-lg transition-all shadow-sm flex items-center gap-1 cursor-pointer"
+            className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-black rounded-full transition-all shadow-md flex items-center gap-1 cursor-pointer"
             title="Emergency SOS"
           >
             🚨 SOS
@@ -64,106 +116,96 @@ export default function ActiveRideCard({
         )}
       </div>
 
-      {/* Driver Info */}
-      <div className="px-6 py-5 border-b border-neutral-100">
-        <div className="flex items-center gap-4">
+      <div className="p-5 flex flex-col gap-4">
+        {/* Prominent Safety PIN Card */}
+        <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 rounded-2xl p-4 text-center shadow-sm">
+          <div className="flex items-center justify-center gap-1.5 text-amber-900 font-bold text-xs uppercase tracking-wider mb-2">
+            <ShieldCheck size={16} className="text-amber-600" />
+            <span>Share this OTP with driver:</span>
+          </div>
+          <div className="flex items-center justify-center gap-2.5">
+            {otp.split('').map((digit, i) => (
+              <span
+                key={i}
+                className="w-12 h-14 bg-white border-2 border-amber-400 rounded-2xl flex items-center justify-center text-3xl font-black text-black shadow-md tracking-tight"
+              >
+                {digit}
+              </span>
+            ))}
+          </div>
+          <p className="text-[11px] text-amber-800 mt-2 font-medium">
+            Driver cannot start trip without entering this 4-digit safety code.
+          </p>
+        </div>
+
+        {/* Assigned Driver Details Card */}
+        <div className="p-4 bg-neutral-50 rounded-2xl border border-neutral-100 flex items-center gap-4">
           {/* Avatar */}
-          <div className="w-14 h-14 rounded-full overflow-hidden bg-neutral-200 flex-shrink-0 flex items-center justify-center">
+          <div className="w-14 h-14 rounded-full bg-black text-white flex-shrink-0 flex items-center justify-center text-xl font-bold shadow-sm">
             {driver.profile_image_url ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={driver.profile_image_url} alt={driver.name} className="w-full h-full object-cover" />
+              <img src={driver.profile_image_url} alt={driver.name} className="w-full h-full rounded-full object-cover" />
             ) : (
-              <span className="text-2xl font-bold text-neutral-500">
-                {driver.name.charAt(0).toUpperCase()}
-              </span>
+              driver.name.charAt(0).toUpperCase()
             )}
           </div>
 
-          {/* Driver details */}
+          {/* Details */}
           <div className="flex-1 min-w-0">
-            <div className="font-bold text-black text-base">{driver.name}</div>
-            <div className="flex items-center gap-1 text-sm text-neutral-500 mt-0.5">
-              <Star size={13} fill="#f59e0b" className="text-amber-400" />
-              <span className="font-semibold text-black">{driver.rating?.toFixed(1)}</span>
-              <span className="mx-1">·</span>
-              <span>{tier}</span>
+            <div className="font-extrabold text-black text-base truncate">{driver.name}</div>
+            <div className="text-xs text-neutral-600 font-medium">
+              {driver.vehicle_color} {driver.vehicle_model}
+            </div>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="font-mono text-xs font-bold text-black bg-neutral-200 px-2 py-0.5 rounded-md tracking-wider">
+                {driver.vehicle_plate}
+              </span>
+              <div className="flex items-center gap-0.5 text-xs font-bold text-amber-600">
+                <Star size={12} className="fill-amber-400 text-amber-400" />
+                <span>{driver.rating ? Number(driver.rating).toFixed(1) : '4.9'}</span>
+              </div>
             </div>
           </div>
 
-          {/* Action buttons */}
+          {/* Call / Action */}
           <div className="flex gap-2 flex-shrink-0">
             {driver.phone && (
               <a
                 href={`tel:${driver.phone}`}
-                className="w-10 h-10 rounded-full border border-neutral-200 flex items-center justify-center hover:bg-neutral-50 transition-all"
-                title="Call driver"
+                className="w-10 h-10 rounded-full bg-black text-white flex items-center justify-center hover:bg-neutral-800 transition shadow-sm"
+                title="Call Driver"
               >
-                <Phone size={16} className="text-neutral-600" />
+                <Phone size={16} />
               </a>
             )}
-            <button
-              id="btn-message-driver"
-              className="w-10 h-10 rounded-full border border-neutral-200 flex items-center justify-center hover:bg-neutral-50 transition-all"
-              title="Message driver"
-            >
-              <MessageCircle size={16} className="text-neutral-600" />
-            </button>
           </div>
         </div>
 
-        {/* Vehicle info */}
-        <div className="mt-4 p-3 bg-neutral-50 rounded-xl flex items-center justify-between">
-          <div>
-            <div className="text-xs text-neutral-500">Vehicle</div>
-            <div className="text-sm font-semibold text-black capitalize">
-              {driver.vehicle_color} {driver.vehicle_model}
-            </div>
+        {/* Route Details */}
+        <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-100 space-y-2 text-xs">
+          <div className="flex items-start gap-2">
+            <div className="w-2 h-2 rounded-full bg-emerald-500 mt-1 flex-shrink-0" />
+            <span className="text-neutral-700 truncate font-medium">From: {pickupAddress}</span>
           </div>
-          <div className="text-right">
-            <div className="text-xs text-neutral-500">Plate</div>
-            <div className="text-sm font-bold text-black tracking-wider">
-              {driver.vehicle_plate}
-            </div>
+          <div className="flex items-start gap-2">
+            <div className="w-2 h-2 rounded-sm bg-black mt-1 flex-shrink-0" />
+            <span className="text-neutral-700 truncate font-medium">To: {dropoffAddress}</span>
+          </div>
+          <div className="flex justify-between pt-1 border-t border-neutral-200 text-neutral-900 font-bold">
+            <span>Fare: ₹{fareAmount.toFixed(2)}</span>
+            <span className="text-emerald-700 font-semibold">💵 Cash on Delivery</span>
           </div>
         </div>
-      </div>
 
-      {/* Trip Summary */}
-      <div className="px-6 py-4 border-b border-neutral-100">
-        <div className="flex items-start gap-3 mb-3">
-          <Navigation size={14} className="text-black mt-0.5 flex-shrink-0" fill="black" />
-          <div>
-            <div className="text-xs text-neutral-500 mb-0.5">From</div>
-            <div className="text-sm text-black font-medium truncate">
-              {pickupAddress.split(',').slice(0, 2).join(',')}
-            </div>
-          </div>
-        </div>
-        <div className="flex items-start gap-3">
-          <div className="w-3.5 h-3.5 bg-black rounded-sm mt-0.5 flex-shrink-0" />
-          <div>
-            <div className="text-xs text-neutral-500 mb-0.5">To</div>
-            <div className="text-sm text-black font-medium truncate">
-              {dropoffAddress.split(',').slice(0, 2).join(',')}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Fare & Cancel */}
-      <div className="px-6 py-4 flex items-center justify-between">
-        <div>
-          <div className="text-xs text-neutral-500">Estimated fare</div>
-          <div className="text-lg font-bold text-black">₹{fareAmount.toFixed(2)}</div>
-        </div>
+        {/* Cancel Button */}
         {status !== 'in_progress' && status !== 'completed' && (
           <button
             id="btn-cancel-ride"
             onClick={onCancel}
-            className="flex items-center gap-1.5 px-4 py-2.5 text-sm font-semibold text-red-600 border border-red-200 rounded-xl hover:bg-red-50 transition-all"
+            className="w-full py-3.5 bg-black hover:bg-neutral-800 text-white font-bold text-sm rounded-2xl transition shadow-md flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98]"
           >
-            <X size={14} />
-            Cancel ride
+            <X size={16} />
+            Cancel Ride
           </button>
         )}
       </div>

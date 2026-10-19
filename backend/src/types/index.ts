@@ -21,6 +21,7 @@ export interface User {
 export interface Driver {
     id: string; // UUID
     user_id: string;
+    driver_name?: string;
     vehicle_model: string;
     vehicle_plate: string;
     vehicle_color: string;
@@ -49,6 +50,7 @@ export interface Ride {
     fare_amount: number;
     ride_tier: RideTier;
     status: RideStatus;
+    otp?: string;
     stripe_payment_intent_id?: string;
     is_paid: boolean;
     created_at: string;

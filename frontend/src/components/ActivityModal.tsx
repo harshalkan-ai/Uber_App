@@ -30,7 +30,7 @@ const DEFAULT_MOCK_HISTORY: TripHistoryItem[] = [
     ride_tier: 'UberGo',
     status: 'completed',
     payment_method: 'Cash on Delivery',
-    driver_name: 'Rajesh Sharma',
+    driver_name: 'Amitabh Sen',
     distance_km: 7.8,
   },
   {
@@ -261,7 +261,7 @@ export default function ActivityModal({ isOpen, onClose }: ActivityModalProps) {
             {/* Trip Specs */}
             <div className="text-[11px] text-neutral-500 space-y-1 bg-neutral-50 p-3 rounded-xl">
               <div><strong className="text-neutral-700">Receipt ID:</strong> {selectedReceipt.id}</div>
-              <div><strong className="text-neutral-700">Driver:</strong> {selectedReceipt.driver_name || 'Rajesh Sharma'}</div>
+              <div><strong className="text-neutral-700">Driver:</strong> {selectedReceipt.driver_name || 'Driver Partner'}</div>
               <div><strong className="text-neutral-700">Distance:</strong> {selectedReceipt.distance_km || 5.2} km</div>
             </div>
 

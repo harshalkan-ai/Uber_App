@@ -39,6 +39,7 @@ export interface BookedRide {
   ride_tier: string;
   pickup_address: string;
   dropoff_address: string;
+  otp?: string;
 }
 
 // ─── Tier Metadata ─────────────────────────────────────────────────────────
