@@ -4,6 +4,7 @@ import { AuthenticatedRequest, CreateRideDTO } from '../types';
 import { calculateRoute } from '../services/osrm.service';
 import { calculateAllFares, calculateSingleFare } from '../services/fare.service';
 import { AppError } from '../middlewares/error.middleware';
+import { io } from '../server';
 
 /**
  * 1. POST /api/v1/rides/estimate
@@ -77,6 +78,18 @@ export const bookRide = async (
         const route = await calculateRoute(pickup_lat, pickup_lng, dropoff_lat, dropoff_lng);
         const lockedFare = calculateSingleFare(ride_tier, route.distanceKm, route.durationMinutes);
 
+        // Ensure user exists in users table to prevent foreign key constraint violations
+        await supabase.from('users').upsert(
+            {
+                id: riderId,
+                email: `${riderId}@uber.dev`,
+                full_name: 'Uber Rider',
+                role: 'rider',
+                updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'id' }
+        );
+
         // Format PostGIS Well-Known Text (WKT) points
         const pickupPoint = `POINT(${pickup_lng} ${pickup_lat})`;
         const dropoffPoint = `POINT(${dropoff_lng} ${dropoff_lat})`;
@@ -107,6 +120,21 @@ export const bookRide = async (
         if (error) {
             return next(new AppError(`Failed to create ride booking: ${error.message}`, 500));
         }
+
+        // Broadcast to all active driver dashboards
+        io.emit('ride:new_request', {
+            rideId: ride.id,
+            pickupAddress: ride.pickup_address,
+            dropoffAddress: ride.dropoff_address,
+            fareAmount: ride.fare_amount,
+            distanceKm: ride.distance_km,
+            durationMinutes: ride.duration_minutes,
+            rideTier: ride.ride_tier,
+            pickupLat: ride.pickup_lat,
+            pickupLng: ride.pickup_lng,
+            dropoffLat: ride.dropoff_lat,
+            dropoffLng: ride.dropoff_lng,
+        });
 
         res.status(201).json({
             success: true,

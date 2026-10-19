@@ -6,12 +6,12 @@ import {
     cancelRide,
     getUserRideHistory,
 } from '../controllers/ride.controller';
-import { requireAuth } from '../middlewares/auth.middleware';
+import { requireAuth, optionalAuth } from '../middlewares/auth.middleware';
 
 const router = Router();
 
 // Calculate fare and preview polyline route
-router.post('/estimate', requireAuth, estimateRideFare);
+router.post('/estimate', optionalAuth, estimateRideFare);
 
 // Book and confirm a ride
 router.post('/book', requireAuth, bookRide);

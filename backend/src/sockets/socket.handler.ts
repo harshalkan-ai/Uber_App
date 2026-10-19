@@ -74,11 +74,38 @@ export const initSocketHandlers = (io: SocketIOServer): void => {
         });
 
         // 6. Broadcast Ride Status Changes ('arrived', 'in_progress', 'completed')
-        socket.on('ride:status_update', ({ rideId, status }: { rideId: string; status: string }) => {
-            io.to(`ride:${rideId}`).emit('ride:status_changed', { status });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        socket.on('ride:status_update', ({ rideId, status, driver }: { rideId: string; status: string; driver?: any }) => {
+            io.to(`ride:${rideId}`).emit('ride:status_changed', { status, driver });
+            io.emit('ride:status_changed', { rideId, status, driver });
         });
 
-        // 7. Cleanup on disconnect
+        // 7. Driver accepts trip
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        socket.on('ride:accept', ({ rideId, driver, driverLocation }: { rideId: string; driver: any; driverLocation?: any }) => {
+            socket.join(`ride:${rideId}`);
+            io.to(`ride:${rideId}`).emit('ride:status_changed', {
+                status: 'assigned',
+                driver,
+                driverLocation,
+            });
+            io.emit('ride:status_changed', {
+                rideId,
+                status: 'assigned',
+                driver,
+                driverLocation,
+            });
+            console.log(`[Socket] Driver accepted ride: ${rideId}`);
+        });
+
+        // 8. Rider requests ride (broadcast to all online drivers)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        socket.on('ride:request', (rideData: any) => {
+            socket.broadcast.emit('ride:new_request', rideData);
+            console.log(`[Socket] Broadcast new ride request:`, rideData?.rideId);
+        });
+
+        // 9. Cleanup on disconnect
         socket.on('disconnect', () => {
             console.log(`[Socket] Client disconnected: ${socket.id}`);
         });

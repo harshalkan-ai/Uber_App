@@ -1,26 +1,109 @@
+@import "leaflet/dist/leaflet.css";
 @import "tailwindcss";
 
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --uber-black: #000000;
+  --uber-white: #ffffff;
+  --uber-gray-50: #f9f9f9;
+  --uber-gray-100: #f0f0f0;
+  --uber-gray-200: #e3e3e3;
+  --uber-gray-300: #c7c7c7;
+  --uber-gray-400: #8f8f8f;
+  --uber-gray-500: #6e6e6e;
+  --uber-gray-600: #545454;
+  --uber-gray-700: #3a3a3a;
+  --uber-gray-800: #212121;
+  --uber-green: #276c2e;
+  --uber-green-light: #d4edda;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track { background: #f1f1f1; }
+::-webkit-scrollbar-thumb { background: #c7c7c7; border-radius: 4px; }
+
+/* Leaflet overrides */
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  font-family: 'Inter', sans-serif;
+}
+.leaflet-control-attribution { font-size: 10px; }
+.leaflet-popup-content-wrapper {
+  border-radius: 12px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.12);
+}
+
+/* Leaflet zoom controls positioning so they never overlap the bottom sheet */
+.leaflet-bottom.leaflet-right {
+  margin-bottom: 24px;
+  margin-right: 16px;
+  z-index: 500;
+}
+@media (max-width: 768px) {
+  .leaflet-bottom.leaflet-right {
+    margin-bottom: 340px;
+    margin-right: 12px;
+  }
+}
+.leaflet-control-compass {
+  display: none !important;
+}
+
+/* Animations */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes radar {
+  0% { transform: scale(0.8); opacity: 0.8; }
+  100% { transform: scale(2.5); opacity: 0; }
+}
+@keyframes carFloat {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-4px); }
+}
+
+.animate-fadeInUp { animation: fadeInUp 0.35s ease-out; }
+.animate-fadeIn { animation: fadeIn 0.25s ease-out; }
+.animate-radar { animation: radar 1.8s ease-out infinite; }
+.animate-car { animation: carFloat 2s ease-in-out infinite; }
+
+.card-shadow {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08), 0 8px 24px rgba(0,0,0,0.06);
+}
+.card-shadow-lg {
+  box-shadow: 0 4px 16px rgba(0,0,0,0.1), 0 16px 48px rgba(0,0,0,0.08);
 }

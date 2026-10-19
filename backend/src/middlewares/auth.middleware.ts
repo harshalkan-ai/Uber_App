@@ -42,3 +42,26 @@ export const requireAuth = async (
         next(new AppError(`Authentication failed: ${error.message || 'Invalid session'}`, 401));
     }
 };
+
+export const optionalAuth = async (
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+): Promise<void> => {
+    try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return next();
+        }
+        const token = authHeader.split(' ')[1];
+        const verifiedToken = await verifyToken(token, {
+            secretKey: clerkSecretKey,
+        });
+        if (verifiedToken && verifiedToken.sub) {
+            req.userId = verifiedToken.sub;
+        }
+        next();
+    } catch {
+        next();
+    }
+};
