@@ -196,6 +196,9 @@ export default function DriverDashboard() {
   const [isOnline, setIsOnline] = useState<boolean>(true);
   const [todayEarnings, setTodayEarnings] = useState<number>(1450);
   const [completedTripsCount, setCompletedTripsCount] = useState<number>(6);
+  const [currentDriverIndex, setCurrentDriverIndex] = useState<number>(0);
+  const [declinedNotice, setDeclinedNotice] = useState<string | null>(null);
+  const [dynamicRating, setDynamicRating] = useState<number>(4.85);
 
   // Driver Dynamic GPS Telemetry Coordinates
   const [driverPos, setDriverPos] = useState<{ lat: number; lng: number; heading: number }>({
@@ -212,6 +215,7 @@ export default function DriverDashboard() {
   const [countdown, setCountdown] = useState<number>(15);
   const countdownTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastAlertedRideId = useRef<string | null>(null);
+  const handleDeclineRideRef = useRef<((ride?: ActiveTripState | null) => void) | null>(null);
 
   // Active Trip State
   const [activeTrip, setActiveTrip] = useState<ActiveTripState | null>(null);
@@ -394,7 +398,7 @@ export default function DriverDashboard() {
         if (lastAlertedRideId.current !== topRide.id) {
           lastAlertedRideId.current = topRide.id;
           playUberChime();
-          setIncomingRide({
+          const topRideState: ActiveTripState = {
             rideId: topRide.id,
             pickupAddress: topRide.pickup_address,
             dropoffAddress: topRide.dropoff_address,
@@ -408,7 +412,8 @@ export default function DriverDashboard() {
             dropoffLng: topRide.dropoff_lng,
             otp: topRide.otp,
             riderName: topRide.rider?.full_name || 'Uber Rider',
-          });
+          };
+          setIncomingRide(topRideState);
           setCountdown(15);
 
           if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
@@ -416,7 +421,7 @@ export default function DriverDashboard() {
             setCountdown((prev) => {
               if (prev <= 1) {
                 clearInterval(countdownTimerRef.current!);
-                setIncomingRide(null);
+                handleDeclineRideRef.current?.(topRideState);
                 return 15;
               }
               if (prev % 3 === 0) playUberChime();
@@ -456,7 +461,7 @@ export default function DriverDashboard() {
 
       lastAlertedRideId.current = rideData.rideId;
       playUberChime();
-      setIncomingRide({
+      const incomingRideData: ActiveTripState = {
         rideId: rideData.rideId,
         pickupAddress: rideData.pickupAddress,
         dropoffAddress: rideData.dropoffAddress,
@@ -470,7 +475,8 @@ export default function DriverDashboard() {
         dropoffLng: rideData.dropoffLng,
         otp: rideData.otp,
         riderName: rideData.riderName || 'Uber Rider',
-      });
+      };
+      setIncomingRide(incomingRideData);
       setCountdown(15);
 
       if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
@@ -478,7 +484,7 @@ export default function DriverDashboard() {
         setCountdown((prev) => {
           if (prev <= 1) {
             clearInterval(countdownTimerRef.current!);
-            setIncomingRide(null);
+            handleDeclineRideRef.current?.(incomingRideData);
             return 15;
           }
           if (prev % 3 === 0) playUberChime();
@@ -517,7 +523,11 @@ export default function DriverDashboard() {
   const activeVehiclePlate = vehiclePlate || profile?.vehicle_plate || 'MH 04 DK 4019';
   const activeVehicleColor = vehicleColor || profile?.vehicle_color || 'Grey';
   const vehicleText = `${activeVehicleColor} ${activeVehicleModel} • ${activeVehiclePlate}`;
-  const driverRating = profile?.rating ? Number(profile.rating).toFixed(1) : '5.0';
+  const driverRating = dynamicRating
+    ? dynamicRating.toFixed(1)
+    : profile?.rating
+    ? Number(profile.rating).toFixed(1)
+    : '4.9';
 
   // ─── Accept Ride ───────────────────────────────────────────────────────────
   const handleAcceptRide = async () => {
@@ -532,7 +542,17 @@ export default function DriverDashboard() {
       const headers: Record<string, string> = {};
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      await axios.post(`${API_URL}/drivers/rides/${targetRide.rideId}/accept`, {}, { headers });
+      await axios.post(
+        `${API_URL}/drivers/rides/${targetRide.rideId}/accept`,
+        {
+          driver_name: activeDriverName,
+          vehicle_model: activeVehicleModel,
+          vehicle_plate: activeVehiclePlate,
+          vehicle_color: activeVehicleColor,
+          rating: Number(driverRating),
+        },
+        { headers }
+      );
 
       setActiveTrip(targetRide);
       setTripStage('accepted');
@@ -550,7 +570,7 @@ export default function DriverDashboard() {
             vehicle_model: activeVehicleModel,
             vehicle_plate: activeVehiclePlate,
             vehicle_color: activeVehicleColor,
-            rating: 5.0,
+            rating: Number(driverRating),
             user: {
               full_name: activeDriverName,
               phone_number: contactPhone,
@@ -567,11 +587,65 @@ export default function DriverDashboard() {
     }
   };
 
-  // ─── Decline Ride ──────────────────────────────────────────────────────────
-  const handleDeclineRide = () => {
+  // ─── Decline Ride (Re-dispatch to Next Nearby Driver in Pool) ───────────────
+  const handleDeclineRide = (declinedTrip?: ActiveTripState | null) => {
     if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
+    const targetRide =
+      declinedTrip && typeof declinedTrip === 'object' && 'rideId' in declinedTrip
+        ? declinedTrip
+        : incomingRide;
     setIncomingRide(null);
+
+    // Advance to next driver in realistic fleet matrix
+    const nextIndex = (currentDriverIndex + 1) % DRIVER_NAMES_POOL.length;
+    setCurrentDriverIndex(nextIndex);
+
+    const nextDriverName = DRIVER_NAMES_POOL[nextIndex];
+    const nextVehicle = FLEET_MATRIX[nextIndex % FLEET_MATRIX.length];
+    const nextRating = Number((4.7 + (nextIndex % 4) * 0.08).toFixed(1));
+    const nextTrips = 8 + nextIndex * 5;
+
+    // Switch driver dashboard identity to the new driver
+    setCustomDriverName(nextDriverName);
+    setVehicleModel(nextVehicle.model);
+    setVehiclePlate(nextVehicle.plate);
+    setVehicleColor(nextVehicle.color);
+    setVehicleTier(nextVehicle.tier);
+    setDynamicRating(nextRating);
+    setCompletedTripsCount(nextTrips);
+
+    // Show handover status notification
+    setDeclinedNotice(`Trip declined. Re-routing dispatch to nearby driver: ${nextDriverName}...`);
+
+    // Reset alert lock so new driver gets request
+    lastAlertedRideId.current = null;
+
+    // After brief 1.2s realistic dispatch handover, re-dispatch the same ride request
+    setTimeout(() => {
+      setDeclinedNotice(null);
+      if (targetRide) {
+        lastAlertedRideId.current = targetRide.rideId;
+        playUberChime();
+        setIncomingRide({ ...targetRide });
+        setCountdown(15);
+
+        if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
+        countdownTimerRef.current = setInterval(() => {
+          setCountdown((prev) => {
+            if (prev <= 1) {
+              clearInterval(countdownTimerRef.current!);
+              handleDeclineRide(targetRide);
+              return 15;
+            }
+            if (prev % 3 === 0) playUberChime();
+            return prev - 1;
+          });
+        }, 1000);
+      }
+    }, 1200);
   };
+
+  handleDeclineRideRef.current = handleDeclineRide;
 
   // ─── Workflow Step 1: Arrived at Pickup ─────────────────────────────────────
   const handleArrivedAtPickup = async () => {
@@ -893,65 +967,8 @@ export default function DriverDashboard() {
   // ─── 3. DEDICATED 50/50 DRIVER DASHBOARD ─────────────────────────────────
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-neutral-900 text-white font-sans">
-      {/* Top Driver Header Navigation */}
-      <header className="flex-none bg-black border-b border-neutral-800 h-16 px-4 md:px-6 flex items-center justify-between z-50">
-        <div className="flex items-center gap-4">
-          <Link href="/" className="flex items-center gap-2">
-            <span className="text-2xl font-black tracking-tight text-white select-none">
-              Uber
-            </span>
-            <span className="bg-amber-400 text-black text-[10px] font-black uppercase px-2 py-0.5 rounded-full tracking-wider">
-              Driver
-            </span>
-          </Link>
-          <div className="h-5 w-[1px] bg-neutral-800 hidden sm:block" />
-          <Link
-            href="/"
-            className="text-xs text-neutral-400 hover:text-white transition hidden sm:inline-flex items-center gap-1"
-          >
-            ← Switch to Rider
-          </Link>
-        </div>
-
-        {/* Dynamic GPS Telemetry Pill in Header */}
-        <div className="hidden lg:flex items-center gap-2 bg-neutral-900 px-3 py-1.5 rounded-full border border-neutral-800 text-xs font-mono text-neutral-300">
-          <span className="text-emerald-400 animate-pulse">📍</span>
-          <span>Lat: {driverPos.lat.toFixed(4)}</span>
-          <span className="text-neutral-600">|</span>
-          <span>Lng: {driverPos.lng.toFixed(4)}</span>
-          <span className="text-neutral-500 font-sans text-[11px]">(Live GPS Tracking)</span>
-        </div>
-
-        {/* Header Right Profile & Multi-Account Switcher */}
-        <div className="flex items-center gap-2.5">
-          {/* Edit Vehicle Quick-Button */}
-          <button
-            id="btn-edit-vehicle"
-            onClick={() => setShowEditVehicleModal(true)}
-            className="text-xs bg-neutral-800 hover:bg-neutral-700 text-neutral-200 px-3 py-1.5 rounded-lg border border-neutral-700 flex items-center gap-1.5 transition cursor-pointer"
-            title="Edit Driver Vehicle & Plate"
-          >
-            <Edit3 size={13} />
-            <span className="hidden sm:inline">Edit Vehicle</span>
-          </button>
-
-          {/* Clerk Multi-Account Switcher Button */}
-          <button
-            id="btn-switch-driver-account"
-            onClick={handleSwitchAccount}
-            className="text-xs bg-neutral-800 hover:bg-neutral-700 text-amber-400 px-3 py-1.5 rounded-lg border border-neutral-700 flex items-center gap-1.5 transition cursor-pointer font-bold"
-            title="Sign out to log in with a different driver account"
-          >
-            <RefreshCw size={12} />
-            <span className="hidden md:inline">Switch Account</span>
-          </button>
-
-          <UserButton />
-        </div>
-      </header>
-
       {/* ─── 50% Management Console / 50% Live Map Split Screen ─────────── */}
-      <div className="flex-1 flex flex-col md:flex-row h-[calc(100vh-64px)] overflow-hidden">
+      <div className="flex-1 flex flex-col md:flex-row h-screen overflow-hidden">
         
         {/* ─── LEFT 50% DRIVER OPERATION CONSOLE ────────────────────────── */}
         <aside className="w-full md:w-1/2 h-[55vh] md:h-full bg-neutral-900 border-r border-neutral-800 flex flex-col justify-between overflow-y-auto p-4 md:p-6 z-20">
@@ -967,7 +984,7 @@ export default function DriverDashboard() {
                   <div>
                     <div className="text-base font-black text-white flex items-center gap-2">
                       <span>{activeDriverName}</span>
-                      <span className="text-[10px] bg-neutral-700 text-neutral-300 px-2 py-0.5 rounded-full font-bold">
+                      <span className="text-[10px] bg-amber-400 text-black px-2 py-0.5 rounded-full font-black uppercase tracking-wider">
                         Driver Partner
                       </span>
                     </div>
@@ -975,10 +992,43 @@ export default function DriverDashboard() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-1 bg-neutral-900 px-3 py-1.5 rounded-full border border-neutral-700 text-amber-400 text-xs font-bold">
-                  <span>⭐</span>
-                  <span>{driverRating}</span>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1 bg-neutral-900 px-3 py-1.5 rounded-full border border-neutral-700 text-amber-400 text-xs font-bold">
+                    <span>⭐</span>
+                    <span>{driverRating}</span>
+                  </div>
+                  <UserButton />
                 </div>
+              </div>
+
+              {/* Driver Quick Actions */}
+              <div className="flex items-center justify-between gap-2 pt-2 border-t border-neutral-700/60 text-xs">
+                <div className="flex items-center gap-2">
+                  <button
+                    id="btn-edit-vehicle"
+                    onClick={() => setShowEditVehicleModal(true)}
+                    className="text-xs bg-neutral-700 hover:bg-neutral-600 text-neutral-200 px-2.5 py-1.5 rounded-lg border border-neutral-600 flex items-center gap-1.5 transition cursor-pointer"
+                    title="Edit Driver Vehicle & Plate"
+                  >
+                    <Edit3 size={13} />
+                    <span>Edit Vehicle</span>
+                  </button>
+                  <button
+                    id="btn-switch-driver-account"
+                    onClick={handleSwitchAccount}
+                    className="text-xs bg-neutral-700 hover:bg-neutral-600 text-amber-400 px-2.5 py-1.5 rounded-lg border border-neutral-600 flex items-center gap-1.5 transition cursor-pointer font-bold"
+                    title="Sign out to log in with a different driver account"
+                  >
+                    <RefreshCw size={12} />
+                    <span>Switch Account</span>
+                  </button>
+                </div>
+                <Link
+                  href="/"
+                  className="text-xs text-neutral-400 hover:text-white transition inline-flex items-center gap-1 font-medium"
+                >
+                  ← Rider Mode
+                </Link>
               </div>
 
               {/* Online/Offline Toggle & Live GPS Telemetry Pill */}
@@ -1022,6 +1072,14 @@ export default function DriverDashboard() {
             {/* 2. Middle Content Area: Incoming Ride Alert OR Active Trip Workflow */}
             <div className="flex-1 flex flex-col justify-center my-2">
               
+              {/* Handover Notice on Decline */}
+              {declinedNotice && (
+                <div className="mb-4 bg-amber-500/20 border border-amber-500/50 text-amber-300 px-4 py-3.5 rounded-2xl flex items-center gap-3 animate-fadeIn text-xs font-bold shadow-xl">
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping flex-shrink-0" />
+                  <span>{declinedNotice}</span>
+                </div>
+              )}
+
               {/* INCOMING RIDE ALERT CARD */}
               {incomingRide ? (
                 <div className="bg-neutral-800 border-2 border-amber-400 rounded-3xl p-5 shadow-2xl animate-scaleUp text-white relative overflow-hidden">
@@ -1076,7 +1134,7 @@ export default function DriverDashboard() {
                   <div className="grid grid-cols-2 gap-3">
                     <button
                       id="btn-decline-ride"
-                      onClick={handleDeclineRide}
+                      onClick={() => handleDeclineRide(incomingRide)}
                       className="py-3.5 bg-neutral-700 hover:bg-neutral-600 text-white font-bold text-sm rounded-xl transition cursor-pointer uppercase tracking-wider"
                     >
                       DECLINE

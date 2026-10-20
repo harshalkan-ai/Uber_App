@@ -92,15 +92,6 @@ export default function Navbar({ activeTab = 'Ride', onOpenActivity }: NavbarPro
             )}
           </div>
 
-          {/* Driver Portal Link */}
-          <Link
-            href="/driver"
-            id="nav-link-driver"
-            className="bg-black text-white px-4 py-2 rounded-full text-xs font-bold hover:bg-neutral-800 transition flex items-center gap-1.5 shadow-sm whitespace-nowrap cursor-pointer"
-            title="Open Driver Dashboard"
-          >
-            🚘 Driver Portal
-          </Link>
 
           {/* Clerk Profile Avatar */}
           {isSignedIn ? (

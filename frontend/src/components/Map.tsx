@@ -35,17 +35,23 @@ const createPickupPin = (label: string) =>
     iconAnchor: [60, 44],
   });
 
-const createDropoffPin = (label: string) =>
+const createDropoffPin = (label: string, durationMinutes?: number | null) =>
   L.divIcon({
     className: '',
     html: `
       <div style="position:relative; display:flex; flex-direction:column; align-items:center;">
         <div style="
           background:#EF4444; color:#fff; font-size:11px; font-weight:800; font-family:sans-serif;
-          padding:3px 8px; border-radius:12px; white-space:nowrap; box-shadow:0 3px 10px rgba(0,0,0,0.35);
-          display:flex; items-center:center; gap:4px; border:2px solid #fff; margin-bottom:4px;
+          padding:4px 10px; border-radius:14px; white-space:nowrap; box-shadow:0 4px 14px rgba(0,0,0,0.35);
+          display:flex; align-items:center; gap:6px; border:2px solid #fff; margin-bottom:4px;
         ">
-          <span>🔴</span> To: ${label.split(',')[0]}
+          <span>🔴</span>
+          <span>To: ${label.split(',')[0]}</span>
+          ${durationMinutes && durationMinutes > 0 ? `
+            <span style="background:rgba(0,0,0,0.35); padding:2px 8px; border-radius:10px; font-size:10px; font-weight:900; letter-spacing:0.2px;">
+              ⏱️ ${Math.round(durationMinutes)} mins
+            </span>
+          ` : ''}
         </div>
         <div style="
           width:16px; height:16px; background:#EF4444;
@@ -53,8 +59,8 @@ const createDropoffPin = (label: string) =>
         "></div>
       </div>
     `,
-    iconSize: [120, 48],
-    iconAnchor: [60, 44],
+    iconSize: [180, 52],
+    iconAnchor: [90, 48],
   });
 
 const createDriverCarIcon = (heading: number = 0, driverText: string = 'Driver Partner • MH 04 DK 4019') =>
@@ -103,6 +109,7 @@ interface MapProps {
   dropoffAddress?: string;
   driverName?: string;
   vehiclePlate?: string;
+  durationMinutes?: number | null;
 }
 
 // Mumbai centroid
@@ -117,6 +124,7 @@ export default function Map({
   dropoffAddress = 'Destination',
   driverName = 'Driver Partner',
   vehiclePlate = 'MH 04 DK 4019',
+  durationMinutes = null,
 }: MapProps) {
   const mapRef = useRef<L.Map | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -188,11 +196,11 @@ export default function Map({
     }
     if (dropoffCoords) {
       dropoffMarkerRef.current = L.marker([dropoffCoords.lat, dropoffCoords.lng], {
-        icon: createDropoffPin(dropoffAddress),
+        icon: createDropoffPin(dropoffAddress, durationMinutes),
         zIndexOffset: 600,
       }).addTo(mapRef.current);
     }
-  }, [dropoffCoords, dropoffAddress]);
+  }, [dropoffCoords, dropoffAddress, durationMinutes]);
 
   // ─── Draw Traffic-Colored Route Polyline ──────────────────────────────────
   useEffect(() => {

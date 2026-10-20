@@ -91,6 +91,29 @@ export default function Home() {
   // ─── Trip phase ─────────────────────────────────────────────────────────
   const [phase, setPhase] = useState<TripPhase>('idle');
 
+  // ─── Destination ETA Timing ─────────────────────────────────────────────
+  const [destinationEtaMinutes, setDestinationEtaMinutes] = useState<number | null>(null);
+
+  // Sync ETA from route data or booked ride
+  useEffect(() => {
+    const dur =
+      bookedRide?.duration_minutes ||
+      routeData?.durationMinutes ||
+      (fareEstimates.length > 0 ? fareEstimates[0].durationMinutes : null);
+    if (dur && dur > 0) {
+      setDestinationEtaMinutes(Math.round(dur));
+    }
+  }, [bookedRide?.duration_minutes, routeData?.durationMinutes, fareEstimates]);
+
+  // Live countdown when trip is in progress (ticks down: 20 mins -> 19 mins -> 18 mins...)
+  useEffect(() => {
+    if (rideStatus !== 'in_progress' || !destinationEtaMinutes) return;
+    const timer = setInterval(() => {
+      setDestinationEtaMinutes((prev) => (prev && prev > 1 ? prev - 1 : 1));
+    }, 45000);
+    return () => clearInterval(timer);
+  }, [rideStatus, destinationEtaMinutes]);
+
   // ─── Socket ─────────────────────────────────────────────────────────────
   const socketRef = useRef<Socket | null>(null);
 
@@ -431,6 +454,26 @@ export default function Home() {
 
         {/* Right 68% Map Canvas */}
         <main className="flex-1 h-[50vh] md:h-full relative z-10 w-full order-1 md:order-2">
+          {/* Floating Live Destination ETA Pill */}
+          {destinationEtaMinutes && destinationEtaMinutes > 0 && dropoffCoords && (
+            <div className="absolute top-4 right-4 z-[400] bg-black/90 backdrop-blur-md text-white px-4 py-2.5 rounded-2xl shadow-2xl border border-neutral-700/80 flex items-center gap-3 animate-fadeIn pointer-events-auto">
+              <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-sm">
+                ⏱️
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">
+                  {rideStatus === 'in_progress' ? 'Destination In' : 'Estimated Travel Time'}
+                </span>
+                <span className="text-base font-black text-white flex items-center gap-1.5 leading-tight">
+                  <span>{destinationEtaMinutes} mins</span>
+                  {routeData?.distanceKm ? (
+                    <span className="text-xs text-neutral-400 font-medium">({routeData.distanceKm} km)</span>
+                  ) : null}
+                </span>
+              </div>
+            </div>
+          )}
+
           <Map
             pickupCoords={pickupCoords}
             dropoffCoords={dropoffCoords}
@@ -440,6 +483,7 @@ export default function Home() {
             dropoffAddress={dropoffAddress}
             driverName={driver?.name || 'Assigned Driver'}
             vehiclePlate={driver?.vehicle_plate || 'MH 04 DK 4019'}
+            durationMinutes={destinationEtaMinutes}
           />
         </main>
       </div>
