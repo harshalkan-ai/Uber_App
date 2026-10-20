@@ -248,17 +248,32 @@ export const acceptRide = async (
             );
         }
 
-        // 3. Mark driver as 'busy'
-        await supabase.from('drivers').update({ status: 'busy' }).eq('id', driver.id);
+        const driverName = req.body.driver_name || driver.driver_name || driver.user?.full_name || 'Vikram Pawar';
+        const vehicleModel = req.body.vehicle_model || driver.vehicle_model;
+        const vehiclePlate = req.body.vehicle_plate || driver.vehicle_plate;
+        const vehicleColor = req.body.vehicle_color || driver.vehicle_color;
+        const driverRating = Number(req.body.rating || driver.rating || 5.0);
 
-        const driverName = driver.driver_name || driver.user?.full_name || 'Vikram Pawar';
+        // 3. Mark driver as 'busy' and sync active assigned identity
+        await supabase
+            .from('drivers')
+            .update({
+                status: 'busy',
+                driver_name: driverName,
+                vehicle_model: vehicleModel,
+                vehicle_plate: vehiclePlate,
+                vehicle_color: vehicleColor,
+            })
+            .eq('id', driver.id);
+
         const driverPayload = {
             id: driver.id,
             name: driverName,
-            vehicle_model: driver.vehicle_model,
-            vehicle_plate: driver.vehicle_plate,
-            vehicle_color: driver.vehicle_color,
-            rating: driver.rating || 5.0,
+            driver_name: driverName,
+            vehicle_model: vehicleModel,
+            vehicle_plate: vehiclePlate,
+            vehicle_color: vehicleColor,
+            rating: driverRating,
             user: {
                 full_name: driverName,
                 phone_number: driver.user?.phone_number || '+91 98765 43210',
